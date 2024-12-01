@@ -1,2 +1,2 @@
-# StormBuster_Map
-This is to render radar data from GeoServer WMTS
+Here’s a preview of the StormBuster radar map:
+![Preview](./preview.png)

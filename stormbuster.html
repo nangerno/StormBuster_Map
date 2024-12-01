@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stormbuster-MVP</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.15.1/css/ol.css" type="text/css">
+  <style>
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.15.1/build/ol.js"></script>
+  <script type="module">
+    async function fetchLayerNames() {
+      const response = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('http://93.119.12.218/storename.json'));
+      const data = await response.json();
+      const jsonData = JSON.parse(data.contents);
+      const processedFiles = jsonData.selected_files
+          .filter(file => !file.includes('0.3_187km'))
+          .map(file => {
+              const filenameWithoutExtension = file.replace('.tiff', '');
+              return `stormbuster:${filenameWithoutExtension}`;
+          });
+      return processedFiles;
+    }
+    const projection = new ol.proj.Projection({
+      code: 'EPSG:4326',
+      units: 'degrees',
+      axisOrientation: 'neu'
+    });
+
+    const resolutions = [
+      0.703125, 0.3515625, 0.17578125, 0.087890625,
+      0.0439453125, 0.02197265625, 0.010986328125,
+      0.0054931640625, 0.00274658203125, 0.001373291015625,
+      0.0006866455078125, 0.00034332275390625
+    ];
+
+    const matrixIds = resolutions.map((_, i) => `EPSG:4326:${i}`);
+    const layerNames = await fetchLayerNames();
+    const wmtsLayers = layerNames.map(layerName => new ol.layer.Tile({
+      source: new ol.source.WMTS({
+        url: 'http://93.119.12.218:8080/geoserver/stormbuster/gwc/service/wmts',
+        layer: [layerName],
+        matrixSet: 'EPSG:4326',
+        format: 'image/png',
+        // format: 'image/webp',
+        // projection: projection,
+        tileGrid: new ol.tilegrid.WMTS({
+          origin: [-180, 90],
+          resolutions: resolutions,
+          matrixIds: matrixIds
+        }),
+        style: '',
+        wrapX: true
+      })
+    }));
+
+    const satelliteLayer = new ol.layer.Tile({
+      source: new ol.source.XYZ({
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attributions: ['stormbuster: nangerno@gmail.com'],
+        minZoom: 4,
+        maxZoom: 8,
+      }),
+    });
+    const map = new ol.Map({
+      target: 'map',
+      layers: [
+        // mapboxLayer,
+        satelliteLayer,
+        wmtsLayers[0]
+      ],
+      view: new ol.View({
+        projection: projection,
+        center: [3.5, 51.5],
+        zoom: 6
+      })
+    });
+
+    const bounds = [1, 49, 8, 54];
+    map.getView().fit(bounds, map.getSize());
+
+    let currentLayerIndex = 0;
+    function switchLayer() {
+      map.removeLayer(wmtsLayers[currentLayerIndex]);
+      currentLayerIndex = (currentLayerIndex + 1) % wmtsLayers.length;
+      map.addLayer(wmtsLayers[currentLayerIndex]);
+    }
+    setInterval(switchLayer, 2000);
+  </script>
+</body>
+</html>
